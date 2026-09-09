@@ -86,7 +86,7 @@ router.patch('/:id', async (req, res) => {
   const s = assertScope(req, res);
   if (!s) return;
 
-  const { status, date, time, serviceName, duration, notes } = req.body || {};
+  const { status, date, time, serviceName, duration, notes, clientName, clientPhone } = req.body || {};
 
   if (status && !['pendiente', 'atendiendo', 'realizado'].includes(status)) {
     return res.status(400).json({
@@ -103,10 +103,12 @@ router.patch('/:id', async (req, res) => {
        service_name = COALESCE($4, service_name),
        duration     = COALESCE($5, duration),
        notes        = COALESCE($6, notes),
+       client_name  = COALESCE($7, client_name),
+       client_phone = COALESCE($8, client_phone),
        updated_at   = NOW()
-     WHERE id=$7 AND company_id=$8
+     WHERE id=$9 AND company_id=$10
      RETURNING *`,
-    [status, date, time, serviceName, duration, notes, req.params.id, s.companyId],
+    [status, date, time, serviceName, duration, notes, clientName, clientPhone, req.params.id, s.companyId],
   );
   if (!rows[0]) return res.status(404).json({ error: 'Cita no encontrada.' });
   res.json(rows[0]);

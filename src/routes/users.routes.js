@@ -44,6 +44,44 @@ router.post('/', requireRole('super_admin', 'admin'), async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/users/:id — actualiza datos de un usuario o su estado activo/inactivo
+// ---------------------------------------------------------------------------
+router.patch('/:id', requireRole('super_admin', 'admin'), async (req, res) => {
+  const s = assertScope(req, res);
+  if (!s) return;
+
+  const { name, email, phone, role, active } = req.body || {};
+
+  if (role && !['admin', 'employee'].includes(role)) {
+    return res.status(400).json({ error: 'Rol inválido.' });
+  }
+
+  const { rows } = await query(
+    `UPDATE users
+     SET
+       name       = COALESCE($1, name),
+       email      = COALESCE($2, email),
+       phone      = COALESCE($3, phone),
+       role       = COALESCE($4, role),
+       active     = COALESCE($5, active)
+     WHERE id=$6 AND company_id=$7
+     RETURNING id,name,email,phone,role,company_id,active`,
+    [
+      name ? name.trim() : null,
+      email ? email.toLowerCase().trim() : null,
+      phone !== undefined ? phone : null,
+      role || null,
+      active !== undefined ? active : null,
+      req.params.id,
+      s.companyId,
+    ],
+  );
+
+  if (!rows[0]) return res.status(404).json({ error: 'Usuario no encontrado.' });
+  res.json(rows[0]);
+});
+
+// ---------------------------------------------------------------------------
 // PATCH /api/users/:id/password — cambia la contraseña de un usuario
 // ---------------------------------------------------------------------------
 router.patch('/:id/password', requireRole('super_admin', 'admin'), async (req, res) => {
@@ -59,6 +97,25 @@ router.patch('/:id/password', requireRole('super_admin', 'admin'), async (req, r
     [hash, req.params.id, s.companyId],
   );
   if (!rows[0]) return res.status(404).json({ error: 'Usuario no encontrado.' });
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/users/:id — elimina un usuario del negocio
+// ---------------------------------------------------------------------------
+router.delete('/:id', requireRole('super_admin', 'admin'), async (req, res) => {
+  const s = assertScope(req, res);
+  if (!s) return;
+
+  // Evitar que el admin se elimine a sí mismo
+  if (req.params.id === req.auth.uid) {
+    return res.status(400).json({ error: 'No puedes eliminar tu propio usuario.' });
+  }
+
+  await query('DELETE FROM users WHERE id=$1 AND company_id=$2', [
+    req.params.id,
+    s.companyId,
+  ]);
   res.json({ ok: true });
 });
 
