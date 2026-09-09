@@ -52,4 +52,12 @@ router.post('/', requireRole('super_admin'), async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// DELETE /api/companies/:id — elimina un negocio y todo lo relacionado en cascada
+// ---------------------------------------------------------------------------
+router.delete('/:id', requireRole('super_admin'), async (req, res) => {
+  await query('DELETE FROM companies WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 export default router;

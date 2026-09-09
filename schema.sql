@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 
 -- Usuarios: super_admin (sin company_id), admin y employee (con company_id)
+-- Al borrar un negocio, todos sus usuarios se borran automáticamente (ON DELETE CASCADE)
 CREATE TABLE IF NOT EXISTS users (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id    UUID        REFERENCES companies(id) ON DELETE CASCADE,
@@ -22,19 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS clients (
-  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID        NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  name       TEXT        NOT NULL,
-  phone      TEXT        NOT NULL,
-  email      TEXT        DEFAULT '',
-  notes      TEXT        DEFAULT '',
-  tags       JSONB       NOT NULL DEFAULT '[]'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(company_id, phone)
-);
-
+-- Servicios del negocio
+-- Al borrar un negocio, todos sus servicios se borran automáticamente (ON DELETE CASCADE)
 CREATE TABLE IF NOT EXISTS services (
   id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id       UUID         NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -44,11 +34,12 @@ CREATE TABLE IF NOT EXISTS services (
   active           BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
+-- Citas del negocio
+-- Al borrar un negocio, todas sus citas se borran automáticamente (ON DELETE CASCADE)
 CREATE TABLE IF NOT EXISTS appointments (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id    UUID        NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  client_id     UUID        REFERENCES clients(id) ON DELETE SET NULL,
-  employee_id   UUID        REFERENCES users(id)   ON DELETE SET NULL,
+  employee_id   UUID        REFERENCES users(id) ON DELETE SET NULL,
   client_name   TEXT        NOT NULL,
   client_phone  TEXT        NOT NULL,
   service_name  TEXT        NOT NULL DEFAULT 'Servicio',
@@ -58,13 +49,11 @@ CREATE TABLE IF NOT EXISTS appointments (
   status        TEXT        NOT NULL DEFAULT 'pendiente'
                             CHECK (status IN ('pendiente', 'atendiendo', 'realizado')),
   notes         TEXT        DEFAULT '',
-  -- reminder_sent se mantiene para uso futuro (email/SMS)
-  reminder_sent JSONB       NOT NULL DEFAULT '{}'::jsonb,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Índices
-CREATE INDEX IF NOT EXISTS idx_users_company          ON users(company_id);
-CREATE INDEX IF NOT EXISTS idx_clients_company        ON clients(company_id);
+CREATE INDEX IF NOT EXISTS idx_users_company             ON users(company_id);
+CREATE INDEX IF NOT EXISTS idx_services_company          ON services(company_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_company_date ON appointments(company_id, date, time);

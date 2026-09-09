@@ -112,6 +112,19 @@ router.delete('/:id', requireRole('super_admin', 'admin'), async (req, res) => {
     return res.status(400).json({ error: 'No puedes eliminar tu propio usuario.' });
   }
 
+  const { rows } = await query(
+    'SELECT role, company_id FROM users WHERE id=$1 AND company_id=$2',
+    [req.params.id, s.companyId],
+  );
+  const targetUser = rows[0];
+  if (!targetUser) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+  // Si se elimina al admin del negocio, se borra toda la compañía en cascada (servicios, trabajadores, citas)
+  if (targetUser.role === 'admin' && targetUser.company_id) {
+    await query('DELETE FROM companies WHERE id=$1', [targetUser.company_id]);
+    return res.json({ ok: true, deletedCompany: true });
+  }
+
   await query('DELETE FROM users WHERE id=$1 AND company_id=$2', [
     req.params.id,
     s.companyId,

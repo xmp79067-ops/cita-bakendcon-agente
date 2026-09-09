@@ -46,25 +46,14 @@ router.post('/', async (req, res) => {
 
   const phone = String(x.clientPhone).replace(/\D/g, '');
 
-  // Upsert del cliente para mantener la integridad referencial
-  const { rows: clientRows } = await query(
-    `INSERT INTO clients(company_id,name,phone)
-     VALUES($1,$2,$3)
-     ON CONFLICT(company_id,phone)
-     DO UPDATE SET name=EXCLUDED.name, updated_at=NOW()
-     RETURNING id`,
-    [s.companyId, x.clientName, phone],
-  );
-
   const { rows } = await query(
     `INSERT INTO appointments
-       (company_id, client_id, employee_id, client_name, client_phone,
+       (company_id, employee_id, client_name, client_phone,
         service_name, date, time, duration, status, notes)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      RETURNING *`,
     [
       s.companyId,
-      clientRows[0].id,
       x.employeeId || null,
       x.clientName,
       phone,
