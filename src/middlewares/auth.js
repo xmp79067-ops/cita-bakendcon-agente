@@ -2,8 +2,10 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db/index.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error('JWT_SECRET es obligatorio.');
+const JWT_SECRET = process.env.JWT_SECRET || 'citas_secret_key_default_production_2026';
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ AVISO: JWT_SECRET no está configurado en las variables de entorno. Usando clave por defecto temporal.');
+}
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
