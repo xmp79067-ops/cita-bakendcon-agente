@@ -6,6 +6,7 @@ import companiesRoutes from './companies.routes.js';
 import usersRoutes from './users.routes.js';
 import servicesRoutes from './services.routes.js';
 import appointmentsRoutes from './appointments.routes.js';
+import superadminRoutes from './superadmin.routes.js';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/companies', companiesRoutes);
 router.use('/users', usersRoutes);
 router.use('/services', servicesRoutes);
 router.use('/appointments', appointmentsRoutes);
+router.use('/superadmin', superadminRoutes);
 
 export default router;

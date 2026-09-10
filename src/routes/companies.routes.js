@@ -6,11 +6,75 @@ import { hashPassword } from '../middlewares/auth.js';
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// GET /api/companies  — lista todos los negocios (solo super_admin)
+// GET /api/companies  — lista todos los negocios con metadata de admin (solo super_admin)
 // ---------------------------------------------------------------------------
 router.get('/', requireRole('super_admin'), async (_req, res) => {
-  const { rows } = await query('SELECT * FROM companies ORDER BY created_at DESC');
-  res.json(rows);
+  const { rows } = await query(`
+    SELECT
+      c.*,
+      u.name AS admin_name,
+      u.email AS admin_email,
+      (SELECT COUNT(*) FROM appointments a WHERE a.company_id = c.id) AS appointments_count,
+      (SELECT COUNT(*) FROM users u2 WHERE u2.company_id = c.id) AS users_count,
+      (SELECT COUNT(*) FROM services s WHERE s.company_id = c.id) AS services_count
+    FROM companies c
+    LEFT JOIN users u ON u.company_id = c.id AND u.role = 'admin'
+    ORDER BY c.created_at DESC
+  `);
+  res.json(rows.map((c) => ({
+    ...c,
+    adminName: c.admin_name,
+    adminEmail: c.admin_email,
+    appointmentsCount: Number(c.appointments_count || 0),
+    usersCount: Number(c.users_count || 0),
+    servicesCount: Number(c.services_count || 0),
+  })));
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/companies/:id — detalle de un negocio específico
+// ---------------------------------------------------------------------------
+router.get('/:id', requireRole('super_admin'), async (req, res) => {
+  const { rows } = await query(`
+    SELECT
+      c.*,
+      u.name AS admin_name,
+      u.email AS admin_email,
+      (SELECT COUNT(*) FROM appointments a WHERE a.company_id = c.id) AS appointments_count,
+      (SELECT COUNT(*) FROM users u2 WHERE u2.company_id = c.id) AS users_count,
+      (SELECT COUNT(*) FROM services s WHERE s.company_id = c.id) AS services_count
+    FROM companies c
+    LEFT JOIN users u ON u.company_id = c.id AND u.role = 'admin'
+    WHERE c.id = $1
+  `, [req.params.id]);
+
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Negocio no encontrado.' });
+  }
+
+  const c = rows[0];
+  res.json({
+    ...c,
+    adminName: c.admin_name,
+    adminEmail: c.admin_email,
+    appointmentsCount: Number(c.appointments_count || 0),
+    usersCount: Number(c.users_count || 0),
+    servicesCount: Number(c.services_count || 0),
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/companies/:id/toggle-status — activa o suspende un negocio
+// ---------------------------------------------------------------------------
+router.patch('/:id/toggle-status', requireRole('super_admin'), async (req, res) => {
+  const { rows } = await query(
+    'UPDATE companies SET active = NOT active WHERE id = $1 RETURNING *',
+    [req.params.id]
+  );
+  if (!rows.length) {
+    return res.status(404).json({ error: 'Negocio no encontrado.' });
+  }
+  res.json(rows[0]);
 });
 
 // ---------------------------------------------------------------------------
@@ -61,3 +125,4 @@ router.delete('/:id', requireRole('super_admin'), async (req, res) => {
 });
 
 export default router;
+

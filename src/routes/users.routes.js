@@ -7,7 +7,7 @@ const router = Router();
 // ---------------------------------------------------------------------------
 // GET /api/users — lista usuarios del negocio
 // ---------------------------------------------------------------------------
-router.get('/', requireRole('super_admin', 'admin'), async (req, res) => {
+router.get('/', requireRole('super_admin', 'admin', 'employee'), async (req, res) => {
   const s = assertScope(req, res);
   if (!s) return;
 

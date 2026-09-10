@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
-import { assertScope } from '../middlewares/auth.js';
+import { assertScope, requireRole } from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -12,15 +12,23 @@ router.get('/', async (req, res) => {
   if (!s) return;
 
   const { rows } = await query(
-    'SELECT * FROM appointments WHERE company_id=$1 ORDER BY date, time',
+    `SELECT a.*, u.name AS employee_name
+     FROM appointments a
+     LEFT JOIN users u ON a.employee_id = u.id
+     WHERE a.company_id=$1
+     ORDER BY a.date, a.time`,
     [s.companyId],
   );
 
   res.json(
     rows.map((r) => ({
       ...r,
-      date: String(r.date),
+      date: r.date instanceof Date
+        ? `${r.date.getFullYear()}-${String(r.date.getMonth() + 1).padStart(2, '0')}-${String(r.date.getDate()).padStart(2, '0')}`
+        : String(r.date || '').slice(0, 10),
       time: String(r.time).slice(0, 5),
+      employeeId: r.employee_id,
+      employeeName: r.employee_name || null,
       clientName: r.client_name,
       clientPhone: r.client_phone,
       serviceName: r.service_name,
@@ -33,9 +41,9 @@ router.get('/', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/appointments — crea una cita y hace upsert del cliente
+// POST /api/appointments — crea una cita (solo administradores)
 // ---------------------------------------------------------------------------
-router.post('/', async (req, res) => {
+router.post('/', requireRole('super_admin', 'admin'), async (req, res) => {
   const s = assertScope(req, res);
   if (!s) return;
 
@@ -69,13 +77,22 @@ router.post('/', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/appointments/:id — actualiza campos parciales de una cita
+// PATCH /api/appointments/:id — actualiza campos de la cita
 // ---------------------------------------------------------------------------
 router.patch('/:id', async (req, res) => {
   const s = assertScope(req, res);
   if (!s) return;
 
-  const { status, date, time, serviceName, duration, notes, clientName, clientPhone } = req.body || {};
+  const { status, date, time, serviceName, duration, notes, clientName, clientPhone, employeeId } = req.body || {};
+
+  // Si es empleado, únicamente tiene permiso para cambiar el estado
+  if (req.user?.role === 'employee') {
+    if (date || time || serviceName || duration || notes || clientName || clientPhone || employeeId !== undefined) {
+      return res.status(403).json({
+        error: 'Los empleados únicamente pueden actualizar el estado de la cita.',
+      });
+    }
+  }
 
   if (status && !['pendiente', 'atendiendo', 'realizado'].includes(status)) {
     return res.status(400).json({
@@ -94,19 +111,20 @@ router.patch('/:id', async (req, res) => {
        notes        = COALESCE($6, notes),
        client_name  = COALESCE($7, client_name),
        client_phone = COALESCE($8, client_phone),
+       employee_id  = CASE WHEN $9::text IS NOT NULL THEN NULLIF($9, '')::uuid ELSE employee_id END,
        updated_at   = NOW()
-     WHERE id=$9 AND company_id=$10
+     WHERE id=$10 AND company_id=$11
      RETURNING *`,
-    [status, date, time, serviceName, duration, notes, clientName, clientPhone, req.params.id, s.companyId],
+    [status, date, time, serviceName, duration, notes, clientName, clientPhone, employeeId !== undefined ? (employeeId || '') : null, req.params.id, s.companyId],
   );
   if (!rows[0]) return res.status(404).json({ error: 'Cita no encontrada.' });
   res.json(rows[0]);
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/appointments/:id — elimina una cita
+// DELETE /api/appointments/:id — elimina una cita (solo administradores)
 // ---------------------------------------------------------------------------
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireRole('super_admin', 'admin'), async (req, res) => {
   const s = assertScope(req, res);
   if (!s) return;
 
